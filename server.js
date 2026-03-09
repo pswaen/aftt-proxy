@@ -14,18 +14,19 @@ const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "Accept-Language": "fr-BE,fr;q=0.9,en;q=0.8",
-  "Referer": "https://data.aftt.be/",
+  "Content-Type": "application/x-www-form-urlencoded",
+  "Referer": "https://data.aftt.be/interclubs/rankings.php",
 };
 
 // ── Santé ──────────────────────────────────────────────────────
 app.get("/", (_, res) => {
   res.json({
-    name: "AFTT Proxy API", version: "3.0.0",
-    club: "RCTT Heppignies (H136)", engine: "axios",
+    name: "AFTT Proxy API", version: "3.1.0",
+    club: "RCTT Heppignies (H136)", engine: "axios POST",
     routes: [
       "GET /api/club/:clubId/teams",
       "GET /api/club/:clubId/players",
-      "GET /api/debug/raw?url=...",
+      "GET /api/debug/raw",
     ],
   });
 });
@@ -39,99 +40,122 @@ function parseTables(html) {
     const rowMatches = [...tableMatch[0].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
     for (const row of rowMatches) {
       const cells = [...row[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)]
-        .map(c => c[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim());
+        .map(c => c[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g,"&").trim());
       if (cells.length > 0) rows.push(cells);
     }
-    if (rows.length > 0) tables.push(rows);
+    if (rows.length > 1) tables.push(rows); // skip tables with only header
   }
   return tables;
 }
 
-// ── Équipes ────────────────────────────────────────────────────
+// ── Équipes — POST avec indice + semaine ───────────────────────
 app.get("/api/club/:clubId/teams", async (req, res) => {
   const { clubId } = req.params;
+  const semaine = req.query.semaine || "17";
   try {
-    const r = await axios.get(`${AFTT_BASE}/interclubs/rankings.php`, {
-      params: { club: clubId },
+    const params = new URLSearchParams({ indice: clubId, semaine });
+    const r = await axios.post(`${AFTT_BASE}/interclubs/rankings.php`, params.toString(), {
       headers: HEADERS,
       timeout: 15000,
     });
+
     const tables = parseTables(r.data);
     const teams = [];
+
     for (const table of tables) {
       for (const cells of table) {
-        if (cells.length >= 5 && cells[0] && /^\d+$/.test(cells[0])) {
-          teams.push({
-            rank: parseInt(cells[0]),
-            name: cells[1] || "",
-            played: parseInt(cells[2]) || 0,
-            won: parseInt(cells[3]) || 0,
-            drawn: parseInt(cells[4]) || 0,
-            lost: parseInt(cells[5]) || 0,
-            points: parseInt(cells[6]) || 0,
-          });
+        // Ligne de données : commence par un rang numérique ou contient un nom d'équipe
+        if (cells.length >= 4) {
+          const maybeRank = parseInt(cells[0]);
+          const maybeName = cells[1] || cells[0];
+          if (!isNaN(maybeRank) && maybeRank > 0 && maybeName && maybeName.length > 2) {
+            teams.push({
+              rank: maybeRank,
+              name: maybeName.trim(),
+              played: parseInt(cells[2]) || 0,
+              won:    parseInt(cells[3]) || 0,
+              drawn:  parseInt(cells[4]) || 0,
+              lost:   parseInt(cells[5]) || 0,
+              points: parseInt(cells[6]) || 0,
+            });
+          }
         }
       }
     }
+
     if (teams.length === 0) {
       return res.status(404).json({
-        error: "Aucune équipe trouvée — les données sont probablement chargées via JavaScript",
-        clubId,
+        error: "Aucune équipe trouvée",
+        clubId, semaine,
         tableCount: tables.length,
-        preview: r.data.slice(0, 500),
+        tablesPreview: tables.slice(0, 2),
+        htmlPreview: r.data.slice(0, 800),
       });
     }
-    res.json({ clubId, teams, source: "axios" });
+    res.json({ clubId, semaine, teams, source: "axios-post" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── Joueurs ────────────────────────────────────────────────────
+// ── Joueurs — POST club ────────────────────────────────────────
 app.get("/api/club/:clubId/players", async (req, res) => {
   const { clubId } = req.params;
   try {
-    const r = await axios.get(`${AFTT_BASE}/ranking/clubs.php`, {
-      params: { club: clubId },
-      headers: HEADERS,
+    const params = new URLSearchParams({ club: clubId });
+    const r = await axios.post(`${AFTT_BASE}/ranking/clubs.php`, params.toString(), {
+      headers: { ...HEADERS, Referer: "https://data.aftt.be/ranking/clubs.php" },
       timeout: 15000,
     });
+
     const tables = parseTables(r.data);
     const players = [];
     const seen = new Set();
+
     for (const table of tables) {
       for (const cells of table) {
         if (cells.length >= 3 && cells[1] && cells[1].length > 2 && !seen.has(cells[1])
-            && !/^(pos|nom|clt|points|#)/i.test(cells[1])) {
+            && !/^(pos|nom|clt|points|#|rang)/i.test(cells[1])) {
           seen.add(cells[1]);
           players.push({ pos: cells[0], name: cells[1], ranking: cells[2], points: cells[3] || "0" });
         }
       }
     }
+
     if (players.length === 0) {
       return res.status(404).json({
         error: "Aucun joueur trouvé",
         clubId,
         tableCount: tables.length,
-        preview: r.data.slice(0, 500),
+        tablesPreview: tables.slice(0, 2),
       });
     }
-    res.json({ clubId, players, source: "axios" });
+    res.json({ clubId, players, source: "axios-post" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── Debug raw ──────────────────────────────────────────────────
+// ── Debug raw POST ─────────────────────────────────────────────
 app.get("/api/debug/raw", async (req, res) => {
-  const url = req.query.url || `${AFTT_BASE}/interclubs/rankings.php`;
+  const clubId = req.query.club || "H136";
+  const semaine = req.query.semaine || "17";
   try {
-    const r = await axios.get(url, { headers: HEADERS, timeout: 15000 });
+    const params = new URLSearchParams({ indice: clubId, semaine });
+    const r = await axios.post(`${AFTT_BASE}/interclubs/rankings.php`, params.toString(), {
+      headers: HEADERS, timeout: 15000,
+    });
     const tables = parseTables(r.data);
-    res.json({ url, status: r.status, tableCount: tables.length, tables: tables.slice(0, 3), preview: r.data.slice(0, 1000) });
+    res.json({
+      clubId, semaine,
+      status: r.status,
+      tableCount: tables.length,
+      tables: tables.slice(0, 3),
+      htmlPreview: r.data.slice(0, 1500),
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message, url });
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(PORT, () => console.log(`✅ AFTT Proxy v3.0 (axios) démarré sur le port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ AFTT Proxy v3.1 (axios POST) démarré sur le port ${PORT}`));
