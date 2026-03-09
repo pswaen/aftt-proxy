@@ -1,0 +1,24 @@
+{
+  "name": "aftt-proxy",
+  "version": "1.0.0",
+  "description": "Proxy API pour les données AFTT — RCTT Heppignies H136",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "keywords": ["aftt", "tennis-de-table", "belgique", "heppignies", "proxy"],
+  "license": "MIT"
+}
