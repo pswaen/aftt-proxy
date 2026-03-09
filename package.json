@@ -1,17 +1,13 @@
 {
   "name": "aftt-proxy",
-  "version": "2.0.2",
-  "description": "Proxy API AFTT avec Puppeteer — RCTT Heppignies H136",
+  "version": "2.1.0",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18.0.0" },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "puppeteer": "^21.0.0"
+    "cors": "^2.8.5",
+    "puppeteer-core": "^21.0.0",
+    "@sparticuz/chromium": "^119.0.2"
   }
 }
