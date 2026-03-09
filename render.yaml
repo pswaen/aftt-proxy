@@ -1,15 +1,7 @@
 services:
   - type: web
-    name: aftt-proxy-heppignies
+    name: aftt-proxy
     env: node
+    buildCommand: npm install
+    startCommand: node server.js
     plan: free
-    buildCommand: npm install && npx puppeteer browsers install chrome
-    startCommand: npm start
-    healthCheckPath: /
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 3000
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/.cache/puppeteer
