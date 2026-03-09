@@ -1,6 +1,6 @@
 {
   "name": "aftt-proxy",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Proxy API AFTT avec Puppeteer — RCTT Heppignies H136",
   "main": "server.js",
   "scripts": {
