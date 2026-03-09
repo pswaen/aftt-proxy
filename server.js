@@ -86,15 +86,16 @@ async function getTableRows(page) {
 // ── Instance Puppeteer partagée ───────────────────────────────
 let browserInstance = null;
 
+const chromium = require("@sparticuz/chromium");
+const puppeteer = require("puppeteer-core");
+
 async function getBrowser() {
   if (!browserInstance || !browserInstance.isConnected()) {
     browserInstance = await puppeteer.launch({
-      headless: "new",
-      args: [
-        "--no-sandbox", "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage", "--disable-gpu",
-        "--no-first-run", "--no-zygote", "--single-process",
-      ],
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
     });
   }
   return browserInstance;
