@@ -87,9 +87,6 @@ async function getTableRows(page) {
 // ── Instance Puppeteer partagée ───────────────────────────────
 let browserInstance = null;
 
-const chromium = require("@sparticuz/chromium");
-const puppeteer = require("puppeteer-core");
-
 async function getBrowser() {
   if (!browserInstance || !browserInstance.isConnected()) {
     browserInstance = await puppeteer.launch({
